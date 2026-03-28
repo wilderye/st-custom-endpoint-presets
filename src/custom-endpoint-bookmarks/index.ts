@@ -5,39 +5,41 @@ import { createScriptIdDiv } from '@util/script';
 const locale = localStorage.getItem('language') || navigator.language || 'en';
 const isChinese = locale.startsWith('zh');
 
-const t = isChinese ? {
-  title: '自定义端点预设',
-  checkbox: '切换预设不切换API设置',
-  none: '无',
-  btnNew: '新增',
-  btnSave: '保存',
-  btnRename: '改名',
-  btnDelete: '删除',
-  promptName: '请输入预设名称：',
-  promptRename: '请输入新名称：',
-  promptDelete: (n: string) => `确认删除预设「${n}」？`,
-  toastCreated: (n: string) => `预设「${n}」已创建`,
-  toastUpdated: (n: string) => `预设「${n}」已更新`,
-  toastRenamed: (n: string) => `已重命名为「${n}」`,
-  toastDeleted: (n: string) => `预设「${n}」已删除`,
-  toastDuplicate: (n: string) => `已存在同名预设「${n}」`,
-} : {
-  title: 'Custom Endpoint Presets',
-  checkbox: 'Keep API settings when switching presets',
-  none: 'None',
-  btnNew: 'New',
-  btnSave: 'Save',
-  btnRename: 'Rename',
-  btnDelete: 'Delete',
-  promptName: 'Enter preset name:',
-  promptRename: 'Enter new name:',
-  promptDelete: (n: string) => `Delete preset "${n}"?`,
-  toastCreated: (n: string) => `Preset "${n}" created`,
-  toastUpdated: (n: string) => `Preset "${n}" updated`,
-  toastRenamed: (n: string) => `Renamed to "${n}"`,
-  toastDeleted: (n: string) => `Preset "${n}" deleted`,
-  toastDuplicate: (n: string) => `Preset "${n}" already exists`,
-};
+const t = isChinese
+  ? {
+      title: '自定义端点预设',
+      checkbox: '切换对话补全预设时，不切换API设置',
+      none: '无',
+      btnNew: '新增',
+      btnSave: '保存',
+      btnRename: '改名',
+      btnDelete: '删除',
+      promptName: '请输入预设名称：',
+      promptRename: '请输入新名称：',
+      promptDelete: (n: string) => `确认删除预设「${n}」？`,
+      toastCreated: (n: string) => `预设「${n}」已创建`,
+      toastUpdated: (n: string) => `预设「${n}」已更新`,
+      toastRenamed: (n: string) => `已重命名为「${n}」`,
+      toastDeleted: (n: string) => `预设「${n}」已删除`,
+      toastDuplicate: (n: string) => `已存在同名预设「${n}」`,
+    }
+  : {
+      title: 'Custom Endpoint Presets',
+      checkbox: 'Keep API settings when switching chat completion presets',
+      none: 'None',
+      btnNew: 'New',
+      btnSave: 'Save',
+      btnRename: 'Rename',
+      btnDelete: 'Delete',
+      promptName: 'Enter preset name:',
+      promptRename: 'Enter new name:',
+      promptDelete: (n: string) => `Delete preset "${n}"?`,
+      toastCreated: (n: string) => `Preset "${n}" created`,
+      toastUpdated: (n: string) => `Preset "${n}" updated`,
+      toastRenamed: (n: string) => `Renamed to "${n}"`,
+      toastDeleted: (n: string) => `Preset "${n}" deleted`,
+      toastDuplicate: (n: string) => `Preset "${n}" already exists`,
+    };
 
 // ===================== 数据层 =====================
 
@@ -54,7 +56,6 @@ interface BookmarkStore {
 }
 
 const STORE_KEY = 'customEndpointBookmarks';
-const SECRET_KEY = 'api_key_custom';
 
 function getStore(): BookmarkStore {
   const ext = SillyTavern.extensionSettings;
@@ -99,8 +100,10 @@ $(() => {
   // --- 勾选框：切换预设不切换API设置（始终显示，放在 Connection Manager 下方） ---
   const $checkboxWrapper = createScriptIdDiv().addClass('custom-endpoint-bookmarks-bind');
   const $checkboxRow = $('<div class="flex-container alignItemsCenter gap5px marginTop5">');
-  const $checkbox = $('<input type="checkbox" id="ceb_bind_toggle">')
-    .prop('checked', !SillyTavern.chatCompletionSettings.bind_preset_to_connection);
+  const $checkbox = $('<input type="checkbox" id="ceb_bind_toggle">').prop(
+    'checked',
+    !SillyTavern.chatCompletionSettings.bind_preset_to_connection,
+  );
   const $checkboxLabel = $('<label for="ceb_bind_toggle" class="checkbox_label">').text(t.checkbox);
   $checkboxRow.append($checkbox, $checkboxLabel);
   $checkboxWrapper.append($checkboxRow);
@@ -172,16 +175,12 @@ $(() => {
     $('#custom_api_url_text').val(bookmark.url).trigger('input');
     // 填入模型名
     $('#custom_model_id').val(bookmark.model).trigger('input');
-    // 切换 API Key
+    // 切换 API Key（使用原生命令，自动刷新显示和触发重连）
     if (bookmark.secretId) {
       try {
-        await fetch('/api/secrets/rotate', {
-          method: 'POST',
-          headers: SillyTavern.getRequestHeaders(),
-          body: JSON.stringify({ key: SECRET_KEY, id: bookmark.secretId }),
-        });
-        // 触发重连以刷新 Key 显示
-        $('#main_api').trigger('change');
+        await SillyTavern.executeSlashCommandsWithOptions(
+          `/secret-id quiet=true key=api_key_custom ${bookmark.secretId}`,
+        );
       } catch (e) {
         console.error('[ceb] Failed to rotate secret:', e);
       }
@@ -190,11 +189,7 @@ $(() => {
 
   // --- 新增 ---
   $btnCreate.on('click', async () => {
-    const name = await SillyTavern.callGenericPopup(
-      t.promptName,
-      SillyTavern.POPUP_TYPE.INPUT,
-      '',
-    );
+    const name = await SillyTavern.callGenericPopup(t.promptName, SillyTavern.POPUP_TYPE.INPUT, '');
 
     if (!name || typeof name !== 'string') return;
     const trimmed = name.trim();
@@ -246,11 +241,7 @@ $(() => {
     const bookmark = store.bookmarks.find(b => b.name === oldName);
     if (!bookmark) return;
 
-    const newName = await SillyTavern.callGenericPopup(
-      t.promptRename,
-      SillyTavern.POPUP_TYPE.INPUT,
-      oldName,
-    );
+    const newName = await SillyTavern.callGenericPopup(t.promptRename, SillyTavern.POPUP_TYPE.INPUT, oldName);
 
     if (!newName || typeof newName !== 'string') return;
     const trimmed = newName.trim();
@@ -273,12 +264,9 @@ $(() => {
     const name = store.selectedName;
     if (!name) return;
 
-    const confirm = await SillyTavern.callGenericPopup(
-      t.promptDelete(name),
-      SillyTavern.POPUP_TYPE.CONFIRM,
-    );
+    const confirmed = await SillyTavern.callGenericPopup(t.promptDelete(name), SillyTavern.POPUP_TYPE.CONFIRM);
 
-    if (!confirm) return;
+    if (!confirmed) return;
 
     const index = store.bookmarks.findIndex(b => b.name === name);
     if (index !== -1) {
