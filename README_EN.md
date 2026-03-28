@@ -20,7 +20,7 @@ Both can coexist — if Connection Manager changes your settings, this script's 
 
 ## Requirements
 
-- [SillyTavern](https://github.com/SillyTavern/SillyTavern)
+- [SillyTavern](https://github.com/SillyTavern/SillyTavern) ≥ **1.13.0**
 - [Tavern Helper (酒馆助手)](https://n0vi028.github.io/JS-Slash-Runner-Doc/guide/%E5%85%B3%E4%BA%8E%E9%85%92%E9%A6%86%E5%8A%A9%E6%89%8B/%E5%AE%89%E8%A3%85%E4%B8%8E%E6%9B%B4%E6%96%B0.html)
 
 ## Installation
