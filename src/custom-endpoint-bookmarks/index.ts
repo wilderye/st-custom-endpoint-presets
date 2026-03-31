@@ -82,14 +82,15 @@ async function getActiveSecretId(): Promise<string | null> {
   return null;
 }
 
+// 标记：脚本自己正在执行 Key 切换，用于区分外部事件
+let _selfRotating = false;
+
 // ===================== UI 层 =====================
 
 console.log('[ceb] 脚本模块已加载');
 
 $(() => {
-  console.log('[ceb] jQuery ready 回调已触发');
   const store = getStore();
-  console.log('[ceb] Store 已初始化:', JSON.stringify(store));
 
   // --- 创建书签容器（仅 Custom 时显示） ---
   const $container = createScriptIdDiv().addClass('custom-endpoint-bookmarks');
@@ -176,14 +177,22 @@ $(() => {
     // 填入模型名
     $('#custom_model_id').val(bookmark.model).trigger('input');
     // 切换 API Key（使用原生命令，自动刷新显示和触发重连）
+    // [日志 #1] Key 切换前后
     if (bookmark.secretId) {
+      console.info('[ceb] 切换书签:', name, '→ 目标 secretId=', bookmark.secretId);
+      _selfRotating = true;
       try {
         await SillyTavern.executeSlashCommandsWithOptions(
           `/secret-id quiet=true key=api_key_custom ${bookmark.secretId}`,
         );
+        console.info('[ceb] 切换成功:', name);
       } catch (e) {
-        console.error('[ceb] Failed to rotate secret:', e);
+        console.error('[ceb] 切换失败:', name, e);
+      } finally {
+        _selfRotating = false;
       }
+    } else {
+      console.warn('[ceb] 切换书签:', name, '但该书签没有存储 secretId，跳过 Key 切换');
     }
   });
 
@@ -200,7 +209,9 @@ $(() => {
       return;
     }
 
+    // [日志 #7] 新增书签时记录拿到的 secretId
     const secretId = await getActiveSecretId();
+    console.info('[ceb] 新增书签:', trimmed, '获取到 secretId=', secretId);
 
     const bookmark: Bookmark = {
       name: trimmed,
@@ -224,7 +235,9 @@ $(() => {
     const bookmark = store.bookmarks.find(b => b.name === name);
     if (!bookmark) return;
 
+    // [日志 #2] 保存书签时记录拿到的 secretId
     const secretId = await getActiveSecretId();
+    console.info('[ceb] 保存书签:', name, '获取到 secretId=', secretId, '原 secretId=', bookmark.secretId);
 
     bookmark.url = String($('#custom_api_url_text').val() || '');
     bookmark.secretId = secretId ?? bookmark.secretId;
@@ -304,14 +317,16 @@ $(() => {
   }
   updateVisibility();
 
-  // 监听聊天补全来源变更（使用酒馆事件，自动清理）
+  // [日志 #4] 聊天补全来源变更
   eventOn(tavern_events.CHATCOMPLETION_SOURCE_CHANGED, () => {
+    console.info('[ceb] 聊天补全来源变更:', $('#chat_completion_source').val());
     updateVisibility();
     syncCheckbox();
   });
 
-  // --- Connection Manager 事件同步（自动清理） ---
+  // [日志 #5] Connection Manager 事件
   eventOn(tavern_events.CONNECTION_PROFILE_LOADED, () => {
+    console.warn('[ceb] CONNECTION_PROFILE_LOADED 事件触发，书签选择将被重置');
     store.selectedName = null;
     saveStore();
     $select.val('');
@@ -321,6 +336,29 @@ $(() => {
 
   // --- 初始渲染 ---
   renderDropdown();
+
+  // [日志 #3] 初始化快照
+  if (store.selectedName) {
+    const bm = store.bookmarks.find(b => b.name === store.selectedName);
+    console.info('[ceb] 初始化快照: selectedName=', store.selectedName, 'secretId=', bm?.secretId ?? 'null');
+  }
+
+  // [日志 #6] 监听外部 Key 变动（只关心 api_key_custom）
+  const secretEvents = [
+    tavern_events.SECRET_ROTATED,
+    tavern_events.SECRET_WRITTEN,
+    tavern_events.SECRET_DELETED,
+  ] as const;
+  for (const evt of secretEvents) {
+    eventOn(evt, (key: string) => {
+      if (key !== 'api_key_custom') return;
+      if (_selfRotating) {
+        console.info('[ceb] [自身操作]', evt, ':', key);
+      } else {
+        console.warn('[ceb] [外部操作]', evt, ':', key, '| 当前书签=', store.selectedName);
+      }
+    });
+  }
 
   // --- 脚本卸载时清理 jQuery 事件和 DOM ---
   // eventOn 注册的事件会自动清理，只需手动清理 jQuery 命名空间事件和 DOM
