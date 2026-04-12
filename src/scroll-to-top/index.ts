@@ -236,6 +236,7 @@ function init(): void {
       requestAnimationFrame(() => {
         const swipePos = readSwipeLeftPosition();
         injectButton($mes, swipePos);
+        updateButtonVisibility($mes);
       });
     }
   };
