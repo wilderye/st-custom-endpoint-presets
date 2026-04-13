@@ -6,7 +6,7 @@ import { teleportStyle } from '@util/script';
  * 在长消息楼层底部左侧注入一个 ⏫ 按钮，点击后平滑滚动到该楼层顶部。
  * - 按钮作为 .mes 的直接子元素，使用 position: absolute 定位
  * - 注入时读取 swipe_left 的 computedStyle，动态对齐
- * - 仅在消息高度超过屏幕 2/3 时显示
+ * - 仅在消息高度超过屏幕高度时显示
  * - 长按（500ms）任意按钮可重新校准所有按钮位置（适配切换美化后的布局变化）
  * - 通过事件委托挂在 #chat 上，性能优秀
  */
