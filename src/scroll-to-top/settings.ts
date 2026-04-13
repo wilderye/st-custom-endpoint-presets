@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const SettingsSchema = z.object({
   opticalXOffset: z.number().default(0),
   opticalYOffset: z.number().default(0),
-  showThresholdRatio: z.number().default(2 / 3),
+  showThresholdRatio: z.number().default(1),
   longPressMs: z.number().default(500),
   swipeLeftSpacing: z.number().default(30),
 });
