@@ -3,11 +3,12 @@ import { teleportStyle } from '@util/script';
 /**
  * 楼层顶部跳转按钮脚本
  *
- * 在长消息楼层底部左侧注入一个 ⏫ 按钮，点击后平滑滚动到该楼层顶部。
+ * 在长消息楼层底部注入一个 ⏫ 按钮，点击后平滑滚动到该楼层顶部。
  * - 按钮作为 .mes 的直接子元素，使用 position: absolute 定位
- * - 注入时读取 swipe_left 的 computedStyle，动态对齐
- * - 仅在消息高度超过屏幕高度时显示
- * - 长按（500ms）任意按钮可重新校准所有按钮位置（适配切换美化后的布局变化）
+ * - 三个预设位置：左（对齐 swipe_left）、中（CSS 居中）、右（对齐 swipe_right）
+ * - 通过 CSS 自定义属性桥接实现响应式定位：JS 读 swipe 元素 computedStyle → 写入 CSS 变量
+ * - 监听 SETTINGS_UPDATED 事件自动同步位置（切换主题后）
+ * - 长按弹出设置面板
  * - 通过事件委托挂在 #chat 上，性能优秀
  */
 
@@ -28,97 +29,124 @@ let currSettings = getSettings();
 /** 按钮的标识 class，用于去重和清理 */
 const BTN_CLASS = 'mes_scroll_to_top';
 
-interface SwipeStyles {
-  bottom: string;
-  left: number;
-  width: string;
-  height: string;
-  fontSize: string;
-  lineHeight: string;
-  display: string;
-  alignItems: string;
-  justifyContent: string;
-}
-
 /**
- * 读取页面中任意一个 .swipe_left 的 computedStyle，返回所有排版与定位信息
- * 如果找不到则返回 null（使用 CSS 中的默认值）
+ * 将 swipe_left / swipe_right 的位置信息写入 CSS 自定义属性。
+ * CSS 规则通过 var(--stt-xxx) 引用这些值，实现响应式定位。
  */
-function readSwipeLeftPosition(): SwipeStyles | null {
-  // 注意：脚本运行在 iframe 中，document 是 iframe 的文档
-  // 需要用 parent.document 或 jQuery（已绑定到父页面）来查找酒馆页面元素
+function syncPositionVars(): void {
+  const root = window.parent.document.documentElement;
+
+  // 读取 swipe_left 的位置
   const swipeLeft = $('#chat .swipe_left').get(0);
-  if (!swipeLeft) {
-    console.warn('[scroll-to-top] 未找到 .swipe_left 元素，使用 CSS 默认位置');
-    return null;
+  if (swipeLeft) {
+    const cs = window.parent.getComputedStyle(swipeLeft);
+    const left = parseFloat(cs.left);
+    if (!isNaN(left)) {
+      root.style.setProperty('--stt-left', `${left}px`);
+    }
+    root.style.setProperty('--stt-bottom', cs.bottom);
+
+    // 同步排版属性（按钮需要与 swipe 视觉一致）
+    root.style.setProperty('--stt-width', cs.width);
+    root.style.setProperty('--stt-height', cs.height);
+    root.style.setProperty('--stt-font-size', cs.fontSize);
+    root.style.setProperty('--stt-line-height', cs.lineHeight);
   }
 
-  const computed = window.parent.getComputedStyle(swipeLeft);
-  const left = parseFloat(computed.left);
-  if (isNaN(left)) return null;
-
-  return {
-    bottom: computed.bottom,
-    left,
-    width: computed.width,
-    height: computed.height,
-    fontSize: computed.fontSize,
-    lineHeight: computed.lineHeight,
-    display: computed.display,
-    alignItems: computed.alignItems,
-    justifyContent: computed.justifyContent,
-  };
+  // 读取 swipe_right 的距右距离
+  const swipeRight = $('#chat .swipe_right').get(0);
+  if (swipeRight) {
+    const mesEl = $(swipeRight).closest('.mes').get(0);
+    if (mesEl) {
+      const mesRect = mesEl.getBoundingClientRect();
+      const srRect = swipeRight.getBoundingClientRect();
+      const rightOffset = mesRect.right - srRect.right;
+      root.style.setProperty('--stt-right', `${rightOffset}px`);
+    }
+  }
 }
 
 /**
- * 将按钮排版与位置完全同步到 swipe_left
+ * 清理写入的 CSS 自定义属性
  */
-function applyPositionToButton(btn: HTMLElement, styles: SwipeStyles): void {
-  // 最终的 left = 箭头原生left + 我们设定的基础间距 + 用户的 X轴 微调
-  const finalLeft = `${styles.left + currSettings.swipeLeftSpacing + currSettings.opticalXOffset}px`;
-
-  // 定位同步
-  btn.style.bottom = styles.bottom;
-  btn.style.left = finalLeft;
-
-  // 排版属性同步
-  btn.style.width = styles.width;
-  btn.style.height = styles.height;
-  btn.style.fontSize = styles.fontSize;
-  btn.style.lineHeight = styles.lineHeight;
-  btn.style.display = styles.display;
-  btn.style.alignItems = styles.alignItems;
-  btn.style.justifyContent = styles.justifyContent;
-
-  // 光学微调补偿
-  if (currSettings.opticalYOffset !== 0) {
-    btn.style.transform = `translateY(${currSettings.opticalYOffset}px)`;
-  }
-
-  console.info('[scroll-to-top] 按钮排版同步完毕:', { bottom: styles.bottom, left: finalLeft, fontSize: styles.fontSize });
+function cleanupPositionVars(): void {
+  const root = window.parent.document.documentElement;
+  const vars = [
+    '--stt-left',
+    '--stt-bottom',
+    '--stt-right',
+    '--stt-width',
+    '--stt-height',
+    '--stt-font-size',
+    '--stt-line-height',
+    '--stt-optical-x',
+    '--stt-optical-y',
+  ];
+  vars.forEach(v => root.style.removeProperty(v));
 }
 
 /**
- * 为单个 .mes 元素注入跳转按钮（如果尚未注入）
+ * 实时同步预览的光学偏移变量到 CSS
  */
-function injectButton($mes: JQuery<HTMLElement>, swipePos: SwipeStyles | null): void {
-  // 已有按钮则跳过
-  if ($mes.children(`.${BTN_CLASS}`).length > 0) return;
+function syncOpticalVars(x = currSettings.opticalXOffset, y = currSettings.opticalYOffset): void {
+  const root = window.parent.document.documentElement;
+  root.style.setProperty('--stt-optical-x', `${x}px`);
+  root.style.setProperty('--stt-optical-y', `${y}px`);
+}
 
-  // 1:1 复刻原生 DOM 结构：单层节点即是容器也是图标
-  const $btn = $('<div>')
-    .addClass(`${BTN_CLASS} fa-solid fa-angles-up`)
-    .attr('title', '点击跳到顶部 | 长按重新校准位置');
+/**
+ * 为按钮应用位置相关的 class 和 inline style
+ */
+function applyPositionToButton(btn: HTMLElement): void {
+  const pos = currSettings.position;
 
-  $mes.append($btn);
+  // 清除旧的位置 class 和 inline style
+  btn.classList.remove('pos-left', 'pos-center', 'pos-right');
+  btn.style.left = '';
+  btn.style.right = '';
+  btn.style.transform = '';
+  btn.style.marginLeft = '';
 
-  // 如果读取到了 swipe_left 的位置，用 inline style 覆盖 CSS 默认值
-  if (swipePos) {
-    applyPositionToButton($btn[0], swipePos);
+  // 同步排版属性（所有位置通用）
+  const root = window.parent.document.documentElement;
+  const cs = window.parent.getComputedStyle(root);
+  const width = cs.getPropertyValue('--stt-width').trim();
+  const height = cs.getPropertyValue('--stt-height').trim();
+  const fontSize = cs.getPropertyValue('--stt-font-size').trim();
+  const lineHeight = cs.getPropertyValue('--stt-line-height').trim();
+
+  if (width) btn.style.width = width;
+  if (height) btn.style.height = height;
+  if (fontSize) btn.style.fontSize = fontSize;
+  if (lineHeight) btn.style.lineHeight = lineHeight;
+  btn.style.display = 'flex';
+  btn.style.alignItems = 'center';
+  btn.style.justifyContent = 'center';
+
+  // 根据位置设置水平定位
+  if (pos === 'left') {
+    btn.classList.add('pos-left');
+    const sttLeft = parseFloat(cs.getPropertyValue('--stt-left')) || 20;
+    const baseLeft = sttLeft + currSettings.swipeLeftSpacing;
+    btn.style.left = `calc(${baseLeft}px + var(--stt-optical-x, 0px))`;
+  } else if (pos === 'center') {
+    btn.classList.add('pos-center');
+    // X 偏移通过 margin-left 叠加，也可以做在 transform 里。目前保留用 margin-left 加减
+    btn.style.marginLeft = `var(--stt-optical-x, 0px)`;
+  } else {
+    btn.classList.add('pos-right');
+    const sttRight = parseFloat(cs.getPropertyValue('--stt-right')) || 20;
+    const baseRight = sttRight + currSettings.swipeRightSpacing;
+    // 使用负号：拉杆向右拖（正数值）时向笛卡尔坐标的右移（减少 right 值）
+    btn.style.right = `calc(${baseRight}px - var(--stt-optical-x, 0px))`;
   }
 
-  // 根据高度决定是否显示
-  updateButtonVisibility($mes);
+  // Y 偏移（所有位置通用）
+  if (pos === 'center') {
+    btn.style.transform = `translateX(-50%) translateY(var(--stt-optical-y, 0px))`;
+  } else {
+    btn.style.transform = `translateY(var(--stt-optical-y, 0px))`;
+  }
 }
 
 /**
@@ -134,12 +162,24 @@ function updateButtonVisibility($mes: JQuery<HTMLElement>): void {
 }
 
 /**
+ * 为单个 .mes 元素注入跳转按钮（如果尚未注入）
+ */
+function injectButton($mes: JQuery<HTMLElement>): void {
+  if ($mes.children(`.${BTN_CLASS}`).length > 0) return;
+
+  const $btn = $('<div>').addClass(`${BTN_CLASS} fa-solid fa-angles-up`).attr('title', '点击跳到顶部 | 长按打开设置');
+
+  $mes.append($btn);
+  applyPositionToButton($btn[0]);
+  updateButtonVisibility($mes);
+}
+
+/**
  * 为所有已存在的 .mes 楼层注入按钮
  */
 function injectAllButtons(): void {
-  const swipePos = readSwipeLeftPosition();
   $('#chat > .mes').each(function () {
-    injectButton($(this), swipePos);
+    injectButton($(this));
   });
 }
 
@@ -151,80 +191,92 @@ function removeAllButtons(): void {
 }
 
 /**
- * 重新校准：移除所有按钮后重新注入（读取最新的 swipe_left 位置）
+ * 重新校准：同步 CSS 变量后，移除所有按钮重新注入
  */
 function recalibrateAll(): void {
-  console.info('[scroll-to-top] 重新校准按钮位置');
+  syncPositionVars();
   removeAllButtons();
   injectAllButtons();
 }
 
 /**
  * 轻量刷新：就地更新已有按钮位置和可见性，不做 DOM 增删。
- * 用于设置变更时的实时预览。
  */
 function refreshAllButtons(): void {
-  const swipePos = readSwipeLeftPosition();
   $('#chat > .mes').each(function () {
     const $mes = $(this);
     const $btn = $mes.children(`.${BTN_CLASS}`);
-    if ($btn.length > 0 && swipePos) {
-      // 这里的 applyPositionToButton 是之前注入时用的同一个函数，
-      // 它会严格读取 swipe_left 的各种排版参数来保证对齐。
-      applyPositionToButton($btn[0], swipePos);
+    if ($btn.length > 0) {
+      applyPositionToButton($btn[0]);
     }
     updateButtonVisibility($mes);
   });
 }
 
-function init(): void {
-  console.info('[scroll-to-top] 脚本加载');
+/**
+ * 弹出设置面板（共用函数，长按和脚本按钮都调用）
+ */
+function showSettingsPanel(): void {
+  const id = 'mes-scroll-settings-container';
+  if (window.parent.document.getElementById(id)) {
+    return;
+  }
 
-  // 监听设置悬浮窗内的实时保存事件，触发重绘
+  try {
+    const $app = $('<div>').attr('id', id).appendTo(window.parent.document.body);
+    const app = createApp(SettingsPanel);
+    const instance = app.mount($app[0]);
+
+    if (instance && typeof (instance as any).setApp === 'function') {
+      (instance as any).setApp(() => {
+        app.unmount();
+        $app.remove();
+      });
+    }
+  } catch (e) {
+    console.error('[scroll-to-top] 挂载设置面板失败:', e);
+  }
+}
+
+function init(): void {
+  // 监听设置面板的实时保存事件，触发重绘
   let settingsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   window.addEventListener('scroll-to-top-settings-changed', () => {
     currSettings = getSettings();
-    
+    syncOpticalVars();
+
     if (settingsDebounceTimer) clearTimeout(settingsDebounceTimer);
     settingsDebounceTimer = setTimeout(() => {
       refreshAllButtons();
     }, 100);
   });
 
-  // 注册并监听脚本 UI 左侧面板设置按钮 (默认关闭不勾选)
+  // 监听重新校准事件（从面板触发）
+  window.addEventListener('scroll-to-top-recalibrate', () => {
+    recalibrateAll();
+  });
+
+  // 监听拖拽实时预览事件，通过 CSS Variable 做到 60fps 刷新，无需重绘 DOM 属性
+  window.addEventListener('scroll-to-top-settings-preview', e => {
+    const customEvent = e as CustomEvent<{ x: number; y: number }>;
+    syncOpticalVars(customEvent.detail.x, customEvent.detail.y);
+  });
+
+  // 注册脚本 UI 左侧面板设置按钮
   appendInexistentScriptButtons([{ name: '偏置设置', visible: false }]);
 
   const btnEventName = getButtonEvent('偏置设置');
-  console.info(`[scroll-to-top] 注册偏置设置按钮事件: ${btnEventName}`);
 
   eventOn(btnEventName, () => {
-    console.info('[scroll-to-top] 偏置设置按钮被点击了！准备弹出面板...');
-    const id = 'mes-scroll-settings-container';
-    if (window.parent.document.getElementById(id)) {
-      console.warn('[scroll-to-top] 面板 DOM 已经存在，跳过渲染');
-      return;
-    }
-
-    try {
-      const $app = $('<div>').attr('id', id).appendTo(window.parent.document.body);
-      const app = createApp(SettingsPanel);
-      const instance = app.mount($app[0]);
-      
-      // 如果想要提供自动卸载的接口
-      if (instance && typeof (instance as any).setApp === 'function') {
-        (instance as any).setApp(() => {
-          app.unmount();
-          $app.remove();
-        });
-      }
-      console.info('[scroll-to-top] 面板已成功挂载');
-    } catch (e) {
-      console.error('[scroll-to-top] 挂载设置面板失败:', e);
-    }
+    showSettingsPanel();
   });
 
   // 将额外样式传送到酒馆页面 head
   const { destroy: destroyStyle } = teleportStyle();
+
+  // 初始同步 CSS 变量
+  syncPositionVars();
+  syncOpticalVars();
 
   // 为已有楼层注入按钮
   injectAllButtons();
@@ -234,8 +286,7 @@ function init(): void {
     const $mes = $(`#chat > .mes[mesid="${message_id}"]`);
     if ($mes.length > 0) {
       requestAnimationFrame(() => {
-        const swipePos = readSwipeLeftPosition();
-        injectButton($mes, swipePos);
+        injectButton($mes);
         updateButtonVisibility($mes);
       });
     }
@@ -249,8 +300,7 @@ function init(): void {
     const $mes = $(`#chat > .mes[mesid="${message_id}"]`);
     if ($mes.length > 0) {
       requestAnimationFrame(() => {
-        const swipePos = readSwipeLeftPosition();
-        injectButton($mes, swipePos);
+        injectButton($mes);
         updateButtonVisibility($mes);
       });
     }
@@ -270,32 +320,43 @@ function init(): void {
     });
   });
 
+  // 监听主题/设置变更，自动重新同步 CSS 变量
+  eventOn(tavern_events.SETTINGS_UPDATED, () => {
+    requestAnimationFrame(() => {
+      syncPositionVars();
+      refreshAllButtons();
+    });
+  });
+
   // ── 事件委托：点击 & 长按 ──
 
   let longPressTimer: ReturnType<typeof setTimeout> | null = null;
   let isLongPress = false;
 
-  // 长按开始
+  // 长按开始 → 弹出设置面板
   $('#chat').on(`pointerdown.scrollToTop`, `.${BTN_CLASS}`, function () {
     isLongPress = false;
     longPressTimer = setTimeout(() => {
       isLongPress = true;
-      recalibrateAll();
+      showSettingsPanel();
     }, currSettings.longPressMs);
   });
 
   // 长按取消
-  $('#chat').on(`pointerup.scrollToTop pointerleave.scrollToTop pointercancel.scrollToTop`, `.${BTN_CLASS}`, function () {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  });
+  $('#chat').on(
+    `pointerup.scrollToTop pointerleave.scrollToTop pointercancel.scrollToTop`,
+    `.${BTN_CLASS}`,
+    function () {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    },
+  );
 
   // 点击：如果不是长按，则滚动到楼层顶部
   $('#chat').on(`click.scrollToTop`, `.${BTN_CLASS}`, function () {
     if (isLongPress) {
-      // 长按已经触发了重新校准，不执行滚动
       isLongPress = false;
       return;
     }
@@ -309,11 +370,10 @@ function init(): void {
 
   // 脚本卸载时清理
   $(window).on('pagehide', () => {
-    console.info('[scroll-to-top] 脚本卸载');
     $('#chat').off('.scrollToTop');
     removeAllButtons();
     destroyStyle();
-    // 清除挂载在父文档上的设置面板，防止热重载后产生孤儿 DOM
+    cleanupPositionVars();
     window.parent.document.getElementById('mes-scroll-settings-container')?.remove();
   });
 }

@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
 export const SettingsSchema = z.object({
+  position: z.enum(['left', 'center', 'right']).default('center'),
   opticalXOffset: z.number().default(0),
   opticalYOffset: z.number().default(0),
   showThresholdRatio: z.number().default(1),
   longPressMs: z.number().default(500),
   swipeLeftSpacing: z.number().default(30),
+  swipeRightSpacing: z.number().default(45),
 });
 
 export type ScrollSettings = z.infer<typeof SettingsSchema>;
