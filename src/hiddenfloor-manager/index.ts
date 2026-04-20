@@ -11,7 +11,7 @@
 const MENU_ITEM_ID = 'hidden_floor_manager_btn';
 const PREVIEW_COLLAPSE_HEIGHT = '4.5em';
 const FOCUS_BAIT_HTML =
-  '<button autofocus tabindex="0" aria-hidden="true" style="position:absolute; width:0; height:0; padding:0; margin:0; border:none; opacity:0; pointer-events:none;"></button>';
+  '<button autofocus tabindex="0" style="position:absolute; width:0; height:0; padding:0; margin:0; border:none; opacity:0; pointer-events:none;"></button>';
 
 // ─── 工具函数 ───
 
