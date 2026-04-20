@@ -1,28 +1,34 @@
 /**
  * 楼层顶部跳转按钮样式
  *
- * 使用 position: absolute 定位在 .mes 左下角。
- * bottom 和 left 是 CSS 默认值（fallback），
- * JS 在注入时会读取 swipe_left 的 computedStyle 并用 inline style 覆盖。
+ * 使用 position: absolute 定位在 .mes 底部。
+ * bottom 从 CSS 自定义属性 --stt-bottom 读取（由 JS syncPositionVars 设置），
+ * 水平位置根据 pos-left / pos-center / pos-right class 分别处理。
  *
  * 注意: 此样式通过 teleportStyle() 传送到酒馆页面 head 中。
  */
 
 .mes_scroll_to_top {
   position: absolute;
-  // CSS 默认值，JS 会用 inline style 覆盖
-  bottom: calc(var(--swipeCounterHeight) + var(--swipeCounterMargin));
-  left: 50px;
+  // bottom 统一从 CSS 变量读取，fallback 使用酒馆原生变量
+  bottom: var(--stt-bottom, calc(var(--swipeCounterHeight) + var(--swipeCounterMargin)));
 
-  // 大部分视觉属性与盒模型（width, height, flex, font）已由 JS 动态同步同构，
-  // 此处仅保留不可获取的交互层级与透明度状态。
+  // 视觉属性
   opacity: 0.3;
   cursor: pointer;
   color: var(--SmartThemeQuoteColor, var(--SmartThemeBodyColor));
   z-index: 1;
-  transition: opacity var(--animation-duration-2x, 0.25s), color 0.3s;
+  transition:
+    opacity var(--animation-duration-2x, 0.25s),
+    color 0.3s;
 
   &:hover {
     opacity: 0.8;
+  }
+
+  // pos-center: 纯 CSS 水平居中
+  &.pos-center {
+    left: 50%;
+    transform: translateX(-50%);
   }
 }
