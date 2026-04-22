@@ -20,18 +20,6 @@ function getLastId(): number {
   return SillyTavern.chat.length - 1;
 }
 
-/** 获取当前 DOM 中已渲染的第一条消息 ID，若无法获取则返回 0 */
-function getFirstRenderedId(): number {
-  const el = document.querySelector('#chat .mes');
-  if (!el) {
-    return 0;
-  }
-  const raw = el.getAttribute('mesid');
-  const id = Number(raw);
-  const safeId = isNaN(id) ? 0 : id;
-  return safeId;
-}
-
 /** 解析并校验楼层输入值，返回取整后的数字或 null（校验失败时自动 toast） */
 function parseFloorInput(value: unknown): number | null {
   const num = Number(value);
@@ -50,12 +38,6 @@ function parseFloorInput(value: unknown): number | null {
     return null;
   }
   return floored;
-}
-
-/** 计算跳转需要额外渲染的层数 */
-function calcGap(targetIndex: number): number {
-  const firstId = getFirstRenderedId();
-  return Math.max(0, firstId - targetIndex);
 }
 
 // ─── 范围合并 ───
@@ -558,3 +540,5 @@ function init(): void {
 $(() => {
   errorCatched(init)();
 });
+
+export {};
