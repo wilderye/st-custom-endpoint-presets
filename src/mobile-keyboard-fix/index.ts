@@ -70,7 +70,8 @@ function init(): void {
   // 此时 userIntentionallyFocused = true，但发送后应清除。
   if (taEl) {
     taEl.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      const sendOnEnter = (window.parent as any).power_user?.send_on_enter;
+      if (sendOnEnter && e.key === 'Enter' && !e.shiftKey) {
         // 发送后短暂延迟清除意图标记并 blur
         setTimeout(() => {
           userIntentionallyFocused = false;
@@ -143,3 +144,5 @@ function init(): void {
 $(() => {
   errorCatched(init)();
 });
+
+export {};
