@@ -5,6 +5,7 @@ export const SettingsSchema = z.object({
   opticalXOffset: z.number().default(0),
   opticalYOffset: z.number().default(0),
   showThresholdRatio: z.number().default(1),
+  showBottomButton: z.boolean().default(true),
   longPressMs: z.number().default(500),
   swipeLeftSpacing: z.number().default(30),
   swipeRightSpacing: z.number().default(45),
