@@ -3,15 +3,15 @@
     <!-- 主面板 -->
     <div class="mes-scroll-settings-panel">
       <div class="panel-header">
-        <h3 class="panel-title">跳顶按钮设置</h3>
+        <h3 class="panel-title">跳转按钮设置</h3>
         <i title="关闭设置" class="fa-solid fa-xmark close-btn" @click="close"></i>
       </div>
 
       <div class="panel-body">
         <!-- 按钮位置选择 -->
         <div class="setting-item">
-          <div class="setting-title">按钮位置</div>
-          <div class="setting-desc">选择跳顶按钮在消息底部的位置</div>
+          <div class="setting-title">回顶按钮位置</div>
+          <div class="setting-desc">选择回顶按钮在消息底部的位置</div>
           <div class="position-selector">
             <button :class="['pos-btn', { active: settings.position === 'left' }]" @click="setPosition('left')">
               <i class="fa-solid fa-align-left"></i> 左
@@ -27,29 +27,23 @@
 
         <!-- 位置微调 -->
         <div class="setting-item">
-          <div class="setting-title">位置微调</div>
-          <div class="setting-desc">觉得按钮没对齐？手动对位置进行调整</div>
-          <button class="calib-btn" @click="calibrationMode = !calibrationMode">
-            {{ calibrationMode ? '退出微调模式' : '手动微调偏移' }}
-          </button>
+          <div class="setting-title">回顶按钮微调</div>
+          <div class="setting-desc">觉得回顶按钮没对齐？手动对位置进行调整</div>
+          <div class="calib-actions">
+            <button class="calib-btn" @click="calibrationMode = !calibrationMode">
+              {{ calibrationMode ? '退出微调' : '手动微调' }}
+            </button>
+            <button class="calib-btn" @click="recalibrate">
+              重新对齐美化
+            </button>
+          </div>
         </div>
 
         <!-- 常规设置：仅在非微调模式下显示 -->
         <template v-if="!calibrationMode">
-          <!-- 重新校准 -->
-          <div class="setting-item">
-            <div class="setting-title">与当前主题重新对齐</div>
-            <div class="setting-desc">
-              切换美化时，会自动重新对齐，此为备用措施。手动微调数值叠加在对齐后数值之上，重新对齐不会丢失您的微调数值
-            </div>
-            <button class="calib-btn" @click="recalibrate">
-              <i class="fa-solid fa-arrows-rotate"></i> 重新对齐
-            </button>
-          </div>
-
           <!-- 显示高度阈值 -->
           <div class="setting-item">
-            <div class="setting-title">什么情况下才显示此按钮？</div>
+            <div class="setting-title">什么情况下显示回顶/回底按钮？</div>
             <div class="setting-desc">
               当前: 当单条消息长度超过屏幕的 {{ Math.round(settings.showThresholdRatio * 100) }}% 时
             </div>
@@ -62,6 +56,10 @@
               class="w-full"
               @change="commitSettings"
             />
+            <label class="toggle-row">
+              <input v-model="settings.showBottomButton" type="checkbox" @change="commitSettings" />
+              <span>显示回底按钮</span>
+            </label>
           </div>
         </template>
 
@@ -150,6 +148,7 @@ const setPosition = (pos: 'left' | 'center' | 'right') => {
 
 const recalibrate = () => {
   window.dispatchEvent(new CustomEvent('scroll-to-top-recalibrate'));
+  toastr.success('已调整底部按钮位置和大小，保留并叠加之前的手动微调结果', '已重新对齐美化');
 };
 
 const close = () => {
@@ -297,6 +296,26 @@ defineExpose({ setApp: (v: () => void) => (app.unmount = v) });
 
 .calib-btn:hover {
   background: var(--SmartThemeQuoteColor, rgba(255, 255, 255, 0.1));
+}
+
+.calib-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 0.9em;
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.toggle-row input {
+  margin: 0;
 }
 
 .title-row {

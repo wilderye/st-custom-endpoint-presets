@@ -1,10 +1,12 @@
 import { teleportStyle } from '@util/script';
 
 /**
- * 楼层顶部跳转按钮脚本
+ * 楼层跳转按钮脚本
  *
- * 在长消息楼层底部注入一个 ⏫ 按钮，点击后平滑滚动到该楼层顶部。
- * - 按钮作为 .mes 的直接子元素，使用 position: absolute 定位
+ * 在长消息楼层中注入跳顶/跳底按钮。
+ * - 底部按钮点击后平滑滚动到该楼层顶部
+ * - 顶部按钮作为酒馆原生 .mes_button 插入消息右上按钮组，点击后平滑滚动到该楼层底部
+ * - 底部按钮作为 .mes 的直接子元素，使用 position: absolute 定位
  * - 三个预设位置：左（对齐 swipe_left）、中（CSS 居中）、右（对齐 swipe_right）
  * - 通过 CSS 自定义属性桥接实现响应式定位：JS 读 swipe 元素 computedStyle → 写入 CSS 变量
  * - 监听 SETTINGS_UPDATED 事件自动同步位置（切换主题后）
@@ -16,6 +18,7 @@ import './style.scss';
 
 import { createApp } from 'vue';
 import SettingsPanel from './SettingsPanel.vue';
+import { getMessageBottomScrollTop, getMessageTopScrollTop } from './scroll-position';
 import { getSettings } from './settings';
 
 let currSettings = getSettings();
@@ -26,8 +29,10 @@ let currSettings = getSettings();
  * =======================================================
  */
 
-/** 按钮的标识 class，用于去重和清理 */
-const BTN_CLASS = 'mes_scroll_to_top';
+/** 底部跳顶按钮的标识 class，用于去重和清理 */
+const TOP_BTN_CLASS = 'mes_scroll_to_top';
+/** 顶部跳底按钮的标识 class，用于去重和清理 */
+const BOTTOM_BTN_CLASS = 'mes_scroll_to_bottom';
 
 /**
  * 将 swipe_left / swipe_right 的位置信息写入 CSS 自定义属性。
@@ -153,24 +158,41 @@ function applyPositionToButton(btn: HTMLElement): void {
  * 根据消息高度更新按钮可见性
  */
 function updateButtonVisibility($mes: JQuery<HTMLElement>): void {
-  const $btn = $mes.children(`.${BTN_CLASS}`);
-  if ($btn.length === 0) return;
-
   const mesHeight = $mes.outerHeight() || 0;
   const threshold = window.parent.innerHeight * currSettings.showThresholdRatio;
-  $btn.toggle(mesHeight > threshold);
+  const shouldShow = mesHeight > threshold;
+
+  $mes.children(`.${TOP_BTN_CLASS}`).toggle(shouldShow);
+  $mes.find(`.mes_buttons > .${BOTTOM_BTN_CLASS}`).toggle(shouldShow && currSettings.showBottomButton);
 }
 
 /**
  * 为单个 .mes 元素注入跳转按钮（如果尚未注入）
  */
 function injectButton($mes: JQuery<HTMLElement>): void {
-  if ($mes.children(`.${BTN_CLASS}`).length > 0) return;
+  if ($mes.children(`.${TOP_BTN_CLASS}`).length === 0) {
+    const $btn = $('<div>')
+      .addClass(`${TOP_BTN_CLASS} fa-solid fa-angles-up`)
+      .attr('title', '点击跳到顶部 | 长按打开设置');
 
-  const $btn = $('<div>').addClass(`${BTN_CLASS} fa-solid fa-angles-up`).attr('title', '点击跳到顶部 | 长按打开设置');
+    $mes.append($btn);
+    applyPositionToButton($btn[0]);
+  }
 
-  $mes.append($btn);
-  applyPositionToButton($btn[0]);
+  const $mesButtons = $mes.find('.mes_block .mes_buttons').first();
+  if ($mesButtons.length > 0 && $mesButtons.children(`.${BOTTOM_BTN_CLASS}`).length === 0) {
+    const $btn = $('<div>')
+      .addClass(`${BOTTOM_BTN_CLASS} mes_button fa-solid fa-angles-down`)
+      .attr('title', '点击跳到底部');
+
+    const $nativeAnchor = $mesButtons.children('.extraMesButtonsHint').first();
+    if ($nativeAnchor.length > 0) {
+      $btn.insertBefore($nativeAnchor);
+    } else {
+      $mesButtons.prepend($btn);
+    }
+  }
+
   updateButtonVisibility($mes);
 }
 
@@ -187,7 +209,7 @@ function injectAllButtons(): void {
  * 移除所有注入的按钮
  */
 function removeAllButtons(): void {
-  $(`.${BTN_CLASS}`).remove();
+  $(`.${TOP_BTN_CLASS}, .${BOTTOM_BTN_CLASS}`).remove();
 }
 
 /**
@@ -205,7 +227,7 @@ function recalibrateAll(): void {
 function refreshAllButtons(): void {
   $('#chat > .mes').each(function () {
     const $mes = $(this);
-    const $btn = $mes.children(`.${BTN_CLASS}`);
+    const $btn = $mes.children(`.${TOP_BTN_CLASS}`);
     if ($btn.length > 0) {
       applyPositionToButton($btn[0]);
     }
@@ -334,7 +356,7 @@ function init(): void {
   let isLongPress = false;
 
   // 长按开始 → 弹出设置面板
-  $('#chat').on(`pointerdown.scrollToTop`, `.${BTN_CLASS}`, function () {
+  $('#chat').on(`pointerdown.scrollToTop`, `.${TOP_BTN_CLASS}`, function () {
     isLongPress = false;
     longPressTimer = setTimeout(() => {
       isLongPress = true;
@@ -345,7 +367,7 @@ function init(): void {
   // 长按取消
   $('#chat').on(
     `pointerup.scrollToTop pointerleave.scrollToTop pointercancel.scrollToTop`,
-    `.${BTN_CLASS}`,
+    `.${TOP_BTN_CLASS}`,
     function () {
       if (longPressTimer) {
         clearTimeout(longPressTimer);
@@ -355,7 +377,7 @@ function init(): void {
   );
 
   // 点击：如果不是长按，则滚动到楼层顶部
-  $('#chat').on(`click.scrollToTop`, `.${BTN_CLASS}`, function () {
+  $('#chat').on(`click.scrollToTop`, `.${TOP_BTN_CLASS}`, function () {
     if (isLongPress) {
       isLongPress = false;
       return;
@@ -363,7 +385,25 @@ function init(): void {
     const $mes = $(this).closest('.mes');
     if ($mes.length > 0) {
       const $chat = $('#chat');
-      const scrollTo = $chat.scrollTop()! + $mes[0].getBoundingClientRect().top - $chat[0].getBoundingClientRect().top;
+      const scrollTo = getMessageTopScrollTop({
+        currentScrollTop: $chat.scrollTop() ?? 0,
+        chatRect: $chat[0].getBoundingClientRect(),
+        messageRect: $mes[0].getBoundingClientRect(),
+      });
+      $chat.animate({ scrollTop: scrollTo }, 300);
+    }
+  });
+
+  // 点击顶部原生按钮：滚动到楼层底部
+  $('#chat').on(`click.scrollToTop`, `.${BOTTOM_BTN_CLASS}`, function () {
+    const $mes = $(this).closest('.mes');
+    if ($mes.length > 0) {
+      const $chat = $('#chat');
+      const scrollTo = getMessageBottomScrollTop({
+        currentScrollTop: $chat.scrollTop() ?? 0,
+        chatRect: $chat[0].getBoundingClientRect(),
+        messageRect: $mes[0].getBoundingClientRect(),
+      });
       $chat.animate({ scrollTop: scrollTo }, 300);
     }
   });
