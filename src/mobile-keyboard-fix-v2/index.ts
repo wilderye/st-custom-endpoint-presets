@@ -87,6 +87,7 @@ function init(): void {
   // 在 touchstart 捕获阶段检测：若正在生成 + 焦点在 textarea + 触碰点不在 textarea → 主动 blur
   const parentDoc = window.parent.document;
   const ghostFocusGuard = (e: Event) => {
+    lastTouchTime = Date.now();
     if (!isGenerating) return;
     if (parentDoc.activeElement !== taEl) return;
     if (e.target === taEl || taEl.contains(e.target as Node)) return;
