@@ -1,8 +1,16 @@
 {
   "mcpServers": {
     "chrome-devtools": {
+<<<<<<< HEAD
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest", "--auto-connect"]
+=======
+      "command": "pnpx",
+      "args": [
+        "chrome-devtools-mcp@latest",
+        "--autoConnect"
+      ]
+>>>>>>> c5efcd76bf56ff7466cc36a0a02eea9e070a25de
     }
   }
 }
