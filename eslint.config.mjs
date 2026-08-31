@@ -56,7 +56,11 @@ export default [
       'import-x/no-cycle': 'error',
       'import-x/no-dynamic-require': 'warn',
       'import-x/no-nodejs-modules': 'warn',
+<<<<<<< HEAD
       'import-x/no-unresolved': [2, { ignore: ['^http', '\\.s?css$'] }],
+=======
+      'import-x/no-unresolved': [2, { ignore: ['^http'] }],
+>>>>>>> 457044c57ea6141e665c88603ea84d7542da64a4
       'no-dupe-class-members': 'off',
       'no-empty-function': 'off',
       'no-floating-decimal': 'error',
