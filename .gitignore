@@ -11,6 +11,7 @@ pnpm-debug.log*
 
 auto-imports.d.ts
 components.d.ts
+<<<<<<< HEAD
 
 SillyTavern-1.13.5
 SillyTavern-1.15.0
@@ -20,3 +21,5 @@ SillyTavern-1.18.0
 JS-Slash-Runner-main
 .agents
 docs
+=======
+>>>>>>> fbd0c2c5f019bec7ca3a145029527629c529b4b3
