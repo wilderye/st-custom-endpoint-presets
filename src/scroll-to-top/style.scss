@@ -13,6 +13,16 @@
   // bottom 统一从 CSS 变量读取，fallback 使用酒馆原生变量
   bottom: var(--stt-bottom, calc(var(--swipeCounterHeight) + var(--swipeCounterMargin)));
 
+  // 共用尺寸直接读取变量，主题同步时无需逐个重写按钮的 inline style。
+  width: var(--stt-width, auto);
+  height: var(--stt-height, auto);
+  font-size: var(--stt-font-size, inherit);
+  line-height: var(--stt-line-height, normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(var(--stt-optical-y, 0px));
+
   // 视觉属性
   opacity: 0.3;
   cursor: pointer;
@@ -26,9 +36,18 @@
     opacity: 0.8;
   }
 
-  // pos-center: 纯 CSS 水平居中
+  &.pos-left {
+    left: calc(var(--stt-left, 20px) + var(--stt-left-spacing, 30px) + var(--stt-optical-x, 0px));
+  }
+
   &.pos-center {
     left: 50%;
-    transform: translateX(-50%);
+    margin-left: var(--stt-optical-x, 0px);
+    transform: translateX(-50%) translateY(var(--stt-optical-y, 0px));
+  }
+
+  &.pos-right {
+    // 正 X 偏移向右移动，即减少距右边缘的距离。
+    right: calc(var(--stt-right, 20px) + var(--stt-right-spacing, 45px) - var(--stt-optical-x, 0px));
   }
 }
