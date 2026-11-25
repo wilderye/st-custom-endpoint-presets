@@ -27,7 +27,11 @@ export default [
       ...eslintPluginBetterTailwindcss.configs['recommended-warn'].rules,
       ...eslintPluginBetterTailwindcss.configs['recommended-error'].rules,
       'better-tailwindcss/enforce-consistent-line-wrapping': ['off', { preferSingleLine: true, printWidth: 120 }],
+<<<<<<< HEAD
       'better-tailwindcss/no-unregistered-classes': ['off', { ignore: ['fa-*'] }],
+=======
+      'better-tailwindcss/no-unknown-classes': ['off', { ignore: ['fa-*'] }],
+>>>>>>> c264c1a620cdf0169281cbcc1ead53e3dcc7f4dc
     },
     settings: {
       'better-tailwindcss': {
@@ -56,7 +60,11 @@ export default [
       'import-x/no-cycle': 'error',
       'import-x/no-dynamic-require': 'warn',
       'import-x/no-nodejs-modules': 'warn',
+<<<<<<< HEAD
       'import-x/no-unresolved': [2, { ignore: ['^http', '\\.s?css$'] }],
+=======
+      'import-x/no-unresolved': [2, { ignore: ['^http'] }],
+>>>>>>> c264c1a620cdf0169281cbcc1ead53e3dcc7f4dc
       'no-dupe-class-members': 'off',
       'no-empty-function': 'off',
       'no-floating-decimal': 'error',
